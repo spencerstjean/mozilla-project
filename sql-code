@@ -407,10 +407,10 @@ ON a.user_id=b.user_id;
 /* Q: What is the distribution of how often bookmarks are used?
    A: Bookmarks were used at a low frequency (1-2 times) 34.13% of the time.
       Bookmarks were used at a low-to-medium frequency (3-7 times) 32.87% of the time.
-	  Bookmarks were used at medium frequency (8-25 times) 25.39% of the time.
-	  Bookmarks were used at a medium-to-high frequency (26-51 times) 5.45% of the time.
-	  Bookmarks were used at a high frequency (52-70 times) 1.04% of the time.
-	  Bookmarks were used at a very high frequency (>70 times) 0.98% of the time. */
+      Bookmarks were used at medium frequency (8-25 times) 25.39% of the time.
+      Bookmarks were used at a medium-to-high frequency (26-51 times) 5.45% of the time.
+      Bookmarks were used at a high frequency (52-70 times) 1.04% of the time.
+      Bookmarks were used at a very high frequency (>70 times) 0.98% of the time. */
 
 /* In order to determine the size of the brackets for bookmark use among users, I exported the following dataset
 into Excel and calculated the minimum, maximum, average, and median number of instances of users choosing a
