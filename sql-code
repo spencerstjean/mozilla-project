@@ -1,0 +1,841 @@
+/* Mozilla Firefox Project
+   SQL Queries & Questions
+   by Spencer St. Jean */
+   
+/* The following analysis is based on Test Pilot aggregated data samples from the Mozilla Test, A Week in the Life of a Browser- Version 2.
+   Data includes user, event, and survey data over a span of 7 days.
+   Information on the test and data can found at :
+   https://web.archive.org/web/20160304073326/https:/testpilot.mozillalabs.com/testcases/a-week-life-2/aggregated-data.html */
+
+-----------------------------------------------------------
+-------------------- SUMMARY OF DATA ----------------------
+-----------------------------------------------------------
+
+-- Below are counts for each of the tables --
+-- 27,267 users total
+SELECT COUNT(DISTINCT id)
+FROM users;
+
+-- 14,718 events recorded
+SELECT COUNT(DISTINCT user_id)
+FROM events;
+
+-- 4,081 total survey entries
+SELECT COUNT(DISTINCT user_id)
+FROM survey;
+
+/* Q: How many of the total users completed the survey?
+   A: Of the 27,267 users, only 4,081 users completed the survey. 23,186 users did not complete a survey. */
+
+SELECT COUNT(DISTINCT a.id), COUNT (DISTINCT b.user_id)
+FROM users a
+LEFT JOIN survey b
+ON a.id = b.user_id
+WHERE b.user_id IS NULL;
+
+-- There are 12,438 events that do not have a corresponding survey recorded.
+
+SELECT COUNT (DISTINCT a.user_id), COUNT (DISTINCT b.user_id)
+FROM events a
+LEFT JOIN survey b
+ON a.user_id = b.user_id
+WHERE b.user_id IS NULL;
+
+-- There are 1,801 survey entries in which there is not a corresponding event recorded for that user.
+
+SELECT COUNT (DISTINCT a.user_id), COUNT (DISTINCT b.user_id)
+FROM events a
+RIGHT JOIN survey b
+ON a.user_id = b.user_id
+WHERE a.user_id IS NULL;
+
+/* Q: What is the ratio of users that completed the survey?
+   A: Only 14.97% of users completed the survey. */
+   
+WITH
+A AS (
+	SELECT id, count(DISTINCT id) AS total_users
+	FROM users
+	GROUP BY id 
+	),
+B AS (
+	SELECT user_id, count(DISTINCT user_id) AS users_survey
+	FROM survey      
+	GROUP BY user_id
+	)
+SELECT 
+SUM(a.total_users) AS total_users,
+SUM(b.users_survey) AS users_survey,
+CONCAT((CAST(SUM(b.users_survey)/SUM(a.total_users)*100 AS DEC))::numeric (4,2),'%')
+FROM A a
+LEFT JOIN B b
+ON a.id=b.user_id;
+
+/* Q: What is the ratio of users that have an event recorded in the study?
+   A: 53.98% of users have corresponding events recorded. */
+   
+WITH
+A AS (
+	SELECT id, count(DISTINCT id) AS total_users
+	FROM users
+	GROUP BY id 
+	),
+B AS (
+	SELECT user_id, count(DISTINCT user_id) AS users_events
+	FROM events      
+	GROUP BY user_id
+	)
+SELECT 
+SUM(a.total_users) AS total_users,
+SUM(b.users_events) AS users_events,
+CONCAT((CAST(SUM(b.users_events)/SUM(a.total_users)*100 AS DEC))::numeric (4,2),'%')
+FROM A a
+LEFT JOIN B b
+ON a.id=b.user_id;
+
+/* Q: What is the ratio of users who are new to Firefox vs. long-term users?
+   A: Of the 4,057 users that answered the use-duration question, there are 
+   356 short-term users (8.77% of all users) and 3,701 long-term users (91.22% of all users). */
+
+/* ASSUMPTION : In this project, I am assuming that long-term users are
+   defined as users who have been using Firefox for over one year.*/
+   
+-- 24 users that completed the survey did not answer question one. 
+   
+SELECT COUNT(*)
+FROM survey
+WHERE q1 IS NULL;
+
+SELECT COUNT(q1)
+FROM survey;
+
+SELECT COUNT(q1) AS short_term_users
+FROM survey
+WHERE q1 IN('0','1','2');
+
+SELECT COUNT(q1) AS long_term_users
+FROM survey
+WHERE q1 IN('3', '4', '5', '6');
+
+/* Below are frequencies calculated for each answer provided by question one - 
+   how long users have been using Firefox. The results are used to generate a frequency table in Excel.*/
+
+/* NOTE : When calculating ratios from survey answers, 
+   the value representing “total number of users” is all users 
+   that completed the survey questions, rather than all users recorded in the study. */
+
+/* 215 users have used Firefox for less than 3 months.
+   Comprises 5.27% of all users. */
+   
+SELECT COUNT (q1)
+FROM survey
+WHERE q1 LIKE '0';
+
+WITH
+A AS (
+	SELECT DISTINCT user_id, COUNT (DISTINCT user_id) AS total_users
+	FROM survey
+	GROUP BY user_id 
+	),
+B AS (
+	SELECT DISTINCT user_id, COUNT (q1) AS zero_users
+	FROM survey
+	WHERE q1 LIKE '0'
+	GROUP BY user_id
+	)
+SELECT 
+SUM(a.total_users) AS total_users,
+SUM(b.zero_users) AS zero_users,
+CONCAT((CAST(SUM(b.zero_users)/SUM(a.total_users)*100 AS DEC))::numeric (3,2),'%')
+FROM A a
+LEFT JOIN B b
+ON a.user_id=b.user_id;
+
+/* 47 users have used Firefox for 3 to 6 months.
+   Comprises 1.15% of all users. */
+   
+SELECT COUNT (q1)
+FROM survey
+WHERE q1 LIKE '1';
+
+WITH
+A AS (
+	SELECT DISTINCT user_id, COUNT (DISTINCT user_id) AS total_users
+	FROM survey
+	GROUP BY user_id 
+	),
+B AS (
+	SELECT DISTINCT user_id, COUNT (q1) AS one_users
+	FROM survey
+	WHERE q1 LIKE '1'
+	GROUP BY user_id
+	)
+SELECT 
+SUM(a.total_users) AS total_users,
+SUM(b.one_users) AS one_users,
+CONCAT((CAST(SUM(b.one_users)/SUM(a.total_users)*100 AS DEC))::numeric (3,2),'%')
+FROM A a
+LEFT JOIN B b
+ON a.user_id=b.user_id;
+
+/* 94 users have used Firefox for 6 months to 1 year.
+   Comprises 2.3% of all users. */
+   
+SELECT COUNT (q1)
+FROM survey
+WHERE q1 LIKE '2';
+
+WITH
+A AS (
+	SELECT DISTINCT user_id, COUNT (DISTINCT user_id) AS total_users
+	FROM survey
+	GROUP BY user_id 
+	),
+B AS (
+	SELECT DISTINCT user_id, COUNT (q1) AS two_users
+	FROM survey
+	WHERE q1 LIKE '2'
+	GROUP BY user_id
+	)
+SELECT 
+SUM(a.total_users) AS total_users,
+SUM(b.two_users) AS two_users,
+CONCAT((CAST(SUM(b.two_users)/SUM(a.total_users)*100 AS DEC))::numeric (3,2),'%')
+FROM A a
+LEFT JOIN B b
+ON a.user_id=b.user_id;
+
+/* 322 users have used Firefox for 1 to 2 years.
+   Comprises 7.89% of all users. */
+   
+SELECT COUNT (q1)
+FROM survey
+WHERE q1 LIKE '3';
+
+WITH
+A AS (
+	SELECT DISTINCT user_id, COUNT (DISTINCT user_id) AS total_users
+	FROM survey
+	GROUP BY user_id 
+	),
+B AS (
+	SELECT DISTINCT user_id, COUNT (q1) AS three_users
+	FROM survey
+	WHERE q1 LIKE '3'
+	GROUP BY user_id
+	)
+SELECT 
+SUM(a.total_users) AS total_users,
+SUM(b.three_users) AS three_users,
+CONCAT((CAST(SUM(b.three_users)/SUM(a.total_users)*100 AS DEC))::numeric (3,2),'%')
+FROM A a
+LEFT JOIN B b
+ON a.user_id=b.user_id;
+
+/* 549 users have used Firefox for 2 to 3 years.
+   Comprises 13.45% of all users. */
+
+SELECT COUNT (q1)
+FROM survey
+WHERE q1 LIKE '4';
+
+WITH
+A AS (
+	SELECT DISTINCT user_id, COUNT (DISTINCT user_id) AS total_users
+	FROM survey
+	GROUP BY user_id 
+	),
+B AS (
+	SELECT DISTINCT user_id, COUNT (q1) AS four_users
+	FROM survey
+	WHERE q1 LIKE '4'
+	GROUP BY user_id
+	)
+SELECT 
+SUM(a.total_users) AS total_users,
+SUM(b.four_users) AS four_users,
+CONCAT((CAST(SUM(b.four_users)/SUM(a.total_users)*100 AS DEC))::numeric (4,2),'%')
+FROM A a
+LEFT JOIN B b
+ON a.user_id=b.user_id;
+
+/* 1,226 users have used Firefox for 3 to 5 years.
+   Comprises 30.04% of all users. */
+   
+SELECT COUNT (q1)
+FROM survey
+WHERE q1 LIKE '5';
+
+WITH
+A AS (
+	SELECT DISTINCT user_id, COUNT (DISTINCT user_id) AS total_users
+	FROM survey
+	GROUP BY user_id 
+	),
+B AS (
+	SELECT DISTINCT user_id, COUNT (q1) AS five_users
+	FROM survey
+	WHERE q1 LIKE '5'
+	GROUP BY user_id
+	)
+SELECT 
+SUM(a.total_users) AS total_users,
+SUM(b.five_users) AS five_users,
+CONCAT((CAST(SUM(b.five_users)/SUM(a.total_users)*100 AS DEC))::numeric (4,2),'%')
+FROM A a
+LEFT JOIN B b
+ON a.user_id=b.user_id;
+
+/* 1,604 users have used Firefox for more than 5 years.
+   Comprises 39.3% of all users. */
+   
+SELECT COUNT (q1)
+FROM survey
+WHERE q1 LIKE '6';
+
+WITH
+A AS (
+	SELECT DISTINCT user_id, COUNT (DISTINCT user_id) AS total_users
+	FROM survey
+	GROUP BY user_id 
+	),
+B AS (
+	SELECT DISTINCT user_id, COUNT (q1) AS six_users
+	FROM survey
+	WHERE q1 LIKE '6'
+	GROUP BY user_id
+	)
+SELECT 
+SUM(a.total_users) AS total_users,
+SUM(b.six_users) AS six_users,
+CONCAT((CAST(SUM(b.six_users)/SUM(a.total_users)*100 AS DEC))::numeric (4,2),'%')
+FROM A a
+LEFT JOIN B b
+ON a.user_id=b.user_id;
+
+-----------------------------------------------------------
+--------------- SUMMARY OF BOOKMARK USAGE -----------------
+-----------------------------------------------------------
+
+/* Q: What is the median number of bookmarks?
+   A: The median number of bookmarks for users reported in the events data is 29 bookmarks.*/
+
+-- To get the row number of the median value (5457) --
+WITH total_bookmark AS (
+				SELECT DISTINCT user_id, TRIM(TRAILING 'total bookmarks' FROM data1)::INT AS total_bookmarks
+				FROM events
+				WHERE event_code = 8
+				GROUP BY user_id, data1
+				ORDER BY 2
+				)
+SELECT COUNT(total_bookmarks)/2
+FROM total_bookmark;
+
+-- To divide the dataset into the top half and cut off at the row number of the median value --	 
+
+SELECT DISTINCT user_id, TRIM(TRAILING 'total bookmarks' FROM data1)::INT
+FROM events
+WHERE event_code = 8
+GROUP BY user_id, data1
+ORDER BY 2 ASC
+LIMIT 5457;
+
+/* Q: What is the average number of bookmarks?
+   A: The average number of bookmarks for users reported in the events data is 123 bookmarks.*/
+
+WITH total_bookmark AS (
+				SELECT DISTINCT user_id, TRIM(TRAILING 'total bookmarks' FROM data1)::INT AS total_bookmarks
+				FROM events
+				WHERE event_code = 8
+				GROUP BY user_id, data1
+				)
+SELECT AVG(total_bookmarks)
+FROM total_bookmark
+ORDER BY 1;
+									 
+/* Q: What fraction of users launched at least one bookmark during the sample week?
+   A: 44.39% of users launched at least one bookmark during the sample week.*/
+   
+-- 6,534 users launched at least one bookmark during the sample week.
+
+SELECT COUNT (DISTINCT user_id) AS num_choose
+FROM events
+WHERE event_code = 10;
+				
+WITH A AS (
+			SELECT user_id, COUNT (DISTINCT user_id) AS total_users
+			FROM events
+			GROUP BY user_id
+			),
+	 B AS (
+		 	SELECT user_id, COUNT (DISTINCT user_id) AS users_choose
+			FROM events
+			WHERE event_code = 10
+			GROUP BY user_id
+	 		)
+SELECT 
+SUM(a.total_users) AS total_users,
+SUM(b.users_choose) AS users_choose,
+CONCAT((CAST(SUM(b.users_choose)/SUM(a.total_users)*100 AS DEC))::numeric (4,2),'%')
+FROM A a
+LEFT JOIN B b
+ON a.user_id=b.user_id;
+
+/* Q: What fraction of users created new bookmarks?
+   A: Only 6.71% of users created new bookmarks during the sample week.*/
+
+WITH A AS (
+			SELECT user_id, COUNT (DISTINCT user_id) AS total_users
+			FROM events
+			GROUP BY user_id
+			),
+	 B AS (
+		 	SELECT user_id, COUNT (DISTINCT user_id) AS user_added, data1
+			FROM events
+			WHERE event_code = 9
+			AND data1 ILIKE 'new bookmark added'
+		 	GROUP BY user_id, data1
+	 		)
+SELECT 
+SUM(a.total_users) AS total_users,
+SUM(b.user_added) AS user_added,
+CONCAT((CAST(SUM(b.user_added)/SUM(a.total_users)*100 AS DEC))::numeric (4,2),'%')
+FROM A a
+LEFT JOIN B b
+ON a.user_id=b.user_id;
+
+/* Q: What is the distribution of how often bookmarks are used?
+   A: Bookmarks were used at a low frequency (1-2 times) 34.13% of the time.
+      Bookmarks were used at a low-to-medium frequency (3-7 times) 32.87% of the time.
+	  Bookmarks were used at medium frequency (8-25 times) 25.39% of the time.
+	  Bookmarks were used at a medium-to-high frequency (26-51 times) 5.45% of the time.
+	  Bookmarks were used at a high frequency (52-70 times) 1.04% of the time.
+	  Bookmarks were used at a very high frequency (>70 times) 0.98% of the time. */
+
+/* In order to determine the size of the brackets for bookmark use among users, I exported the following dataset
+into Excel and calculated the minimum, maximum, average, and median number of instances of users choosing a
+bookmark, as well as various percentiles. */
+
+SELECT user_id, COUNT(event_code) AS count_bc
+FROM events
+WHERE event_code = 10
+GROUP BY user_id
+ORDER BY 2;
+
+/*
+MIN: 1
+MAX: 560
+AVERAGE: 9.28
+MEDIAN: 4
+25TH PERCENTILE: 2
+50TH PERCENTILE: 4
+65TH PERCENTILE: 7
+75TH PERCENTILE: 10
+85TH PERCENTILE: 16
+95TH PERCENTILE: 32
+98TH PERCENTILE: 52
+99TH PERCENTILE: 70
+*/
+
+-- 6,534 users chose at least one bookmark during the sample week.
+
+SELECT COUNT (DISTINCT user_id)
+FROM events
+WHERE event_code = 10;
+
+-- 2,230 users chose bookmarks at a low frequency.
+-- 2,148 users chose bookmarks at a low-to-medium frequency.
+-- 1,659 users chose bookmarks at a medium frequency.
+-- 356 users chose bookmarks at a medium-to-high frequency.
+-- 68 users chose bookmarks at a high frequency.
+-- 64 users chose bookmarks at a very high frequency.
+
+WITH bookmark_choose AS (
+				SELECT user_id, COUNT(event_code) AS count_bc
+				FROM events
+				WHERE event_code = 10
+				GROUP BY user_id
+				)
+SELECT user_id, count_bc,
+CASE
+	WHEN count_bc BETWEEN 1 AND 2 THEN 'low_frequency'
+	WHEN count_bc BETWEEN 3 AND 7 THEN 'lowtomed_frequency'
+	WHEN count_bc BETWEEN 8 AND 25 THEN 'med_frequency'
+	WHEN count_bc BETWEEN 26 AND 51 THEN 'medtohigh_frequency'
+	WHEN count_bc BETWEEN 52 AND 70 THEN 'high_frequency'
+	ELSE 'veryhigh_frequency'
+END AS "bookmark_frequency"
+FROM bookmark_choose
+GROUP BY user_id, count_bc
+HAVING
+CASE
+	WHEN count_bc BETWEEN 1 AND 2 THEN 'low_frequency'
+	WHEN count_bc BETWEEN 3 AND 7 THEN 'lowtomed_frequency'
+	WHEN count_bc BETWEEN 8 AND 25 THEN 'med_frequency'
+	WHEN count_bc BETWEEN 26 AND 51 THEN 'medtohigh_frequency'
+	WHEN count_bc BETWEEN 52 AND 70 THEN 'high_frequency'
+	ELSE 'veryhigh_frequency'
+END = 'low_frequency';
+
+/* I repeated the above code, changing the "END = 'frequency bracket'" to make 
+note of how many records were returned in each of the frequency brackets. */
+
+/* Q: How does number of bookmarks correlate with how long the user has been using firefox?
+   A: Both short-term and long-term users use bookmarks at a lower frequency. 
+      34.4% of short term users use bookmarks at a low frequency.					30.9% of long-term users use bookmarks at a low frequency.
+	  30.1% of short-term users use bookmarks at a low-to-medium frequency.			30.6% of long-term users use bookmarks at a low-to-medium frequency.
+	  26.9% of short-term users use bookmarks at a medium frequency.				29.4% of long-term users use bookmarks at a medium frequency.
+	  7.5% of short-term users use bookmarks at a medium-to-high frequency.			6.8% of long-term users use bookmarks at a medium-to-high frequency.
+	  0% of short-term users use bookmarks at a high frequency.						1.4% of long-term users use bookmarks at a high frequency.
+	  1.1% of short-term users use bookmarks at a very high frequency. 				0.9% of long-term users use bookmarks at a very high frequency. */
+
+/* 1,162 users total chose at least one bookmark during the sample week and answered question one in the survey.
+   (93 short-term users and 1,064 long-term users) */
+
+WITH bookmark_choose AS (
+				SELECT user_id, COUNT(event_code) AS count_bc
+				FROM events
+				WHERE event_code = 10
+				GROUP BY user_id
+				)
+SELECT a.user_id, a.count_bc, b.q1,
+CASE
+	WHEN count_bc BETWEEN 1 AND 2 THEN 'low_frequency'
+	WHEN count_bc BETWEEN 3 AND 7 THEN 'lowtomed_frequency'
+	WHEN count_bc BETWEEN 8 AND 25 THEN 'med_frequency'
+	WHEN count_bc BETWEEN 26 AND 51 THEN 'medtohigh_frequency'
+	WHEN count_bc BETWEEN 52 AND 70 THEN 'high_frequency'
+	ELSE 'veryhigh_frequency'
+END AS "bookmark_frequency",
+CASE
+	WHEN b.q1 IN ('0', '1', '2') THEN 'shortterm_user'
+	WHEN b.q1 IN ('3', '4', '5', '6') THEN 'longterm_user'
+END AS "user_length"
+FROM bookmark_choose a
+JOIN survey b
+ON a.user_id = b.user_id
+GROUP BY a.user_id, a.count_bc, b.q1
+ORDER BY 1;
+
+/* Short-term user bookmark usage:
+		Low-frequency: 32 users
+		Low-to-Medium frequency: 28 users
+		Medium frequency: 25 users
+		Medium-to-High frequency: 7 users
+		High frequency: 0 users
+		Very High frequency: 1 user
+	Long-term user bookmark usage:
+		Low-frequency: 329 users
+		Low-to-Medium frequency: 326 users
+		Medium frequency: 313 users
+		Medium-to-High frequency: 72 users
+		High frequency: 15 users
+		Very High frequency: 9 users
+*/
+
+WITH userlength_bookmarkfrequency AS (
+		WITH bookmark_choose AS (
+				SELECT user_id, COUNT(event_code) AS count_bc
+				FROM events
+				WHERE event_code = 10
+				GROUP BY user_id
+				)
+		SELECT a.user_id, a.count_bc, b.q1,
+		CASE
+			WHEN count_bc BETWEEN 1 AND 2 THEN 'low_frequency'
+			WHEN count_bc BETWEEN 3 AND 7 THEN 'lowtomed_frequency'
+			WHEN count_bc BETWEEN 8 AND 25 THEN 'med_frequency'
+			WHEN count_bc BETWEEN 26 AND 51 THEN 'medtohigh_frequency'
+			WHEN count_bc BETWEEN 52 AND 70 THEN 'high_frequency'
+			ELSE 'veryhigh_frequency'
+		END AS "bookmark_frequency",
+		CASE
+			WHEN b.q1 IN ('0', '1', '2') THEN 'shortterm_user'
+			WHEN b.q1 IN ('3', '4', '5', '6') THEN 'longterm_user'
+		END AS "user_length"
+		FROM bookmark_choose a
+		JOIN survey b
+		ON a.user_id = b.user_id
+		GROUP BY a.user_id, a.count_bc, b.q1
+		)
+SELECT COUNT (bookmark_frequency), COUNT(user_length)
+FROM userlength_bookmarkfrequency
+WHERE bookmark_frequency ILIKE 'low_frequency'
+AND user_length ILIKE 'shortterm_user';
+
+-- The average number of bookmarks used by short-term users is 75.
+
+WITH shortterm_bookmarks AS (
+				SELECT DISTINCT a.user_id, TRIM(TRAILING 'total bookmarks' FROM a.data1) AS total_bookmarks, b.q1
+				FROM events a
+				JOIN survey b
+				ON a.user_id = b.user_id
+				WHERE event_code = 8
+				AND q1 IN ('0', '1', '2')
+				)
+SELECT AVG(CAST(total_bookmarks AS INT))
+FROM shortterm_bookmarks;
+
+-- The average number of bookmarks used by long-term users is 286.
+				
+WITH longterm_bookmarks AS (
+				SELECT DISTINCT a.user_id, TRIM(TRAILING 'total bookmarks' FROM a.data1) AS total_bookmarks, b.q1
+				FROM events a
+				JOIN survey b
+				ON a.user_id = b.user_id
+				WHERE event_code = 8
+				AND q1 IN ('3', '4', '5', '6')
+				)
+SELECT AVG(CAST(total_bookmarks AS INT))
+FROM longterm_bookmarks;
+				
+-----------------------------------------------------------
+------------- SUMMARY OF BROWSER TABS USAGE ---------------
+-----------------------------------------------------------
+
+-- Maxiumum number of tabs opened during the sample week is 1,103.
+				
+WITH num_tabs AS (
+			SELECT user_id, TRIM (TRAILING 'tabs' FROM data2) AS tabs
+			FROM events
+			WHERE event_code = 26
+			)
+SELECT MAX(CAST(tabs AS INT))
+FROM num_tabs;
+				
+-- Average number of tabs opened during the sample week is 6.
+				
+WITH num_tabs AS (
+			SELECT user_id, TRIM (TRAILING 'tabs' FROM data2) AS tabs
+			FROM events
+			WHERE event_code = 26
+			)
+SELECT AVG(CAST(tabs AS INT))
+FROM num_tabs;
+
+/* Q: What is the distribution of the maximum number of tabs among users?
+   A: A low amount (0-1) of tabs were used 14.5% of the time.
+	  A low-to-medium amount (2-3) of tabs were used 31.5% of the time.
+	  A medium amount (4) of tabs were used 12.2% of the time.
+	  A medium-to-high amount (5-6) of tabs were used 16.5% of the time.
+	  A high amount (7-15) of tabs were used 20.3% of the time.
+	  A very high amount (>15) of tabs were used 5.0% of the time.
+*/
+				
+/* In order to determine the size of the brackets for maximum tab use among users, I exported the following dataset
+into Excel and calculated the minimum, maximum, average, and median number of instances of users choosing a
+bookmark, as well as various percentiles. */	
+
+-- 14,598 users total were recorded with a corresponding tab usage.
+				
+WITH num_tabs AS (
+			SELECT user_id, TRIM (TRAILING 'tabs' FROM data2) AS tabs
+			FROM events
+			WHERE event_code = 26
+			)
+SELECT user_id, MAX(CAST(tabs AS INT))
+FROM num_tabs
+GROUP BY user_id
+ORDER BY 2;
+
+/*
+MIN: 0
+MAX: 1103
+AVERAGE: 6
+MEDIAN: 4
+25TH PERCENTILE: 2
+50TH PERCENTILE: 4
+65TH PERCENTILE: 5
+75TH PERCENTILE: 7
+85TH PERCENTILE: 9
+95TH PERCENTILE: 15
+98TH PERCENTILE: 24
+99TH PERCENTILE: 34
+*/				 
+
+/* 
+2,121 users used a low amount of tabs.
+4,602 users used a low-to-medium amount of tabs.
+1,777 users used a medium amount of tabs.
+2,408 users used a medium-to-high amount of tabs.
+2,962 users used a high amount of tabs.
+728 users useda very high amount of tabs.
+*/				 
+						 
+WITH max_tabs AS(
+		WITH num_tabs AS (
+					SELECT user_id, TRIM (TRAILING 'tabs' FROM data2) AS tabs
+					FROM events
+					WHERE event_code = 26
+					)
+		SELECT user_id, MAX(CAST(tabs AS INT)) AS maxtab_user
+		FROM num_tabs
+		GROUP BY user_id 
+		)
+SELECT user_id, maxtab_user,
+CASE
+	WHEN maxtab_user BETWEEN 0 AND 1 THEN 'low_tabs'
+	WHEN maxtab_user BETWEEN 2 AND 3 THEN 'lowtomed_tabs'
+	WHEN maxtab_user = 4 THEN 'med_tabs'
+	WHEN maxtab_user BETWEEN 5 AND 6 THEN 'medtohigh_tabs'
+	WHEN maxtab_user BETWEEN 7 AND 15 THEN 'high_tabs'
+	ELSE 'veryhigh_tabs'
+END AS "tab_use"							
+FROM max_tabs
+GROUP BY user_id, maxtab_user
+HAVING 
+CASE
+	WHEN maxtab_user BETWEEN 0 AND 1 THEN 'low_tabs'
+	WHEN maxtab_user BETWEEN 2 AND 3 THEN 'lowtomed_tabs'
+	WHEN maxtab_user = 4 THEN 'med_tabs'
+	WHEN maxtab_user BETWEEN 5 AND 6 THEN 'medtohigh_tabs'
+	WHEN maxtab_user BETWEEN 7 AND 15 THEN 'high_tabs'
+	ELSE 'veryhigh_tabs'
+END = 'low_tabs';
+						 
+/* Q: What is the distribution of the number of tabs used among users by length of firefox use?
+   A: Short-term users use an average of 6 tabs. 		
+	  Long-term users use an average of 9 tabs. */	
+				
+WITH num_tabs AS (
+			SELECT user_id, TRIM (TRAILING 'tabs' FROM data2) AS tabs
+			FROM events
+			WHERE event_code = 26
+			)
+SELECT AVG(CAST(a.tabs AS INT))
+FROM num_tabs a
+JOIN survey b
+ON a.user_id = b.user_id
+WHERE q1 IN ('0', '1', '2');
+				
+WITH num_tabs AS (
+			SELECT user_id, TRIM (TRAILING 'tabs' FROM data2) AS tabs
+			FROM events
+			WHERE event_code = 26
+			)
+SELECT AVG(CAST(a.tabs AS INT))
+FROM num_tabs a
+JOIN survey b
+ON a.user_id = b.user_id
+WHERE q1 IN ('3', '4', '5', '6');
+
+/* Less than 3 months: 8 tabs
+   3 - 6 months: 2 tabs
+   6 months - 1 year: 4 tabs */				
+
+WITH num_tabs AS (
+			SELECT user_id, TRIM (TRAILING 'tabs' FROM data2) AS tabs
+			FROM events
+			WHERE event_code = 26
+			)
+SELECT AVG(CAST(a.tabs AS INT)), b.q1
+FROM num_tabs a
+JOIN survey b
+ON a.user_id = b.user_id
+WHERE q1 IN ('0', '1', '2')	
+GROUP BY b.q1;	
+				
+WITH num_tabs AS (
+			SELECT user_id, TRIM (TRAILING 'tabs' FROM data2) AS tabs
+			FROM events
+			WHERE event_code = 26
+			)
+SELECT AVG(CAST(a.tabs AS INT)), b.q1
+FROM num_tabs a
+JOIN survey b
+ON a.user_id = b.user_id
+WHERE q1 IN ('3', '4', '5', '6')
+GROUP BY b.q1;					
+				
+/* 1 - 2 years: 5 tabs
+   2 - 3 years: 5 tabs
+   3 - 5 years: 6 tabs
+   More than 5 years: 12 tabs */
+				
+/* Q: Are there users who regularly had more than 10 tabs open?
+   A: 670 users had more than 10 tabs open on average. (4.6% of all users) */
+				
+WITH ten_user AS(
+		WITH avg_tabs AS(
+				WITH num_tabs AS (
+							SELECT user_id, TRIM (TRAILING 'tabs' FROM data2) AS tabs
+							FROM events
+							WHERE event_code = 26
+							)
+				SELECT user_id, AVG(CAST(tabs AS INT)) AS avgtab_user
+				FROM num_tabs
+				GROUP BY user_id 
+				)
+		SELECT COUNT(user_id) AS count_user, avgtab_user
+		FROM avg_tabs
+		WHERE avgtab_user > 10
+		GROUP BY user_id, avgtab_user
+		)
+SELECT SUM(count_user)
+FROM ten_user;
+				
+/* Q: What fraction of users have ever had more than 5 tabs open?
+   A: 4,688 users opened more than 5 tabs. (32.1% of all users)*/	
+			
+WITH five_user AS(
+		WITH max_tabs AS(
+				WITH num_tabs AS (
+							SELECT user_id, TRIM (TRAILING 'tabs' FROM data2) AS tabs
+							FROM events
+							WHERE event_code = 26
+							)
+				SELECT user_id, MAX(CAST(tabs AS INT)) AS maxtab_user
+				FROM num_tabs
+				GROUP BY user_id 
+				)
+		SELECT COUNT(user_id) AS count_user, maxtab_user
+		FROM max_tabs
+		WHERE maxtab_user > 5
+		GROUP BY user_id, maxtab_user
+		)
+SELECT SUM(count_user)
+FROM five_user;						
+				
+/* Q: What fraction of users have ever had more than 10 tabs open?
+   A: 1,601 users opened more than 10 tabs. (11.0% of all users)*/
+			
+WITH ten_user AS(
+		WITH max_tabs AS(
+				WITH num_tabs AS (
+							SELECT user_id, TRIM (TRAILING 'tabs' FROM data2) AS tabs
+							FROM events
+							WHERE event_code = 26
+							)
+				SELECT user_id, MAX(CAST(tabs AS INT)) AS maxtab_user
+				FROM num_tabs
+				GROUP BY user_id 
+				)
+		SELECT COUNT(user_id) AS count_user, maxtab_user
+		FROM max_tabs
+		WHERE maxtab_user > 10
+		GROUP BY user_id, maxtab_user
+		)
+SELECT SUM(count_user)
+FROM ten_user;			
+
+/* Q: What fraction of users have ever had more then 15 tabs open?
+   A: 728 users had more than 15 tabs open. (5.0% of all users)*/
+			
+WITH onefive_user AS(
+		WITH max_tabs AS(
+				WITH num_tabs AS (
+							SELECT user_id, TRIM (TRAILING 'tabs' FROM data2) AS tabs
+							FROM events
+							WHERE event_code = 26
+							)
+				SELECT user_id, MAX(CAST(tabs AS INT)) AS maxtab_user
+				FROM num_tabs
+				GROUP BY user_id 
+				)
+		SELECT COUNT(user_id) AS count_user, maxtab_user
+		FROM max_tabs
+		WHERE maxtab_user > 15
+		GROUP BY user_id, maxtab_user
+		)
+SELECT SUM(count_user)
+FROM onefive_user;	
